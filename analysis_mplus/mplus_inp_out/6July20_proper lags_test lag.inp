@@ -1,0 +1,124 @@
+Title:
+Mplus file written by Stat/Transfer
+
+!  The following variables were converted:
+!    ID : id
+!    t : t
+!    d0_s1 : d0_s1
+!    impr : impr
+!    warm : warm
+!    comp : comp
+!    statval : statval
+!    statnum : statnum
+!    Itemtype : Itemtype
+!    x1 : x1
+!    x2 : x2
+!    x3 : x3
+!    x4 : x4
+!    x5 : x5
+!    x6 : x6
+!    x7 : x7
+!    x8 : x8
+!    itemnum : itemnum
+!    Meanval1 : Meanval1
+!    Meanval2 : Meanval2
+!    int_lag : gen int_lag= Meanval1* l.Meanval1
+!    INTERACT = int_fwd : gen int_fwd= Meanval1* f.Meanval1
+
+Data:
+   File is August17.dat ;
+
+Variable:
+   Names are     ID          T           D0_S1       IMPR        WARM        COMP        
+     STATVAL     STATNUM     ITEMTYPE    X1          X2          X3          
+     X4          X5          X6          X7          X8          ITEMNUM     
+     MEANVAL1    MEANVAL2    INTERACT     INT_FWD  ;  
+   Missing are . ;
+
+! interact is MEANVAL1*L.MEANVAL1 so we use the contemporaneous value here for it
+   
+  CLUSTER = ID;
+  LAGGED = IMPR(1) WARM(1) COMP(1);
+  BETWEEN = D0_S1;
+  WITHIN = MEANVAL1 interact x1-x8;
+  Usevariables are D0_S1 IMPR WARM COMP MEANVAL1 x1-x8 interact;
+
+Analysis:
+  TYPE = random twolevel;
+  ESTIMATOR = BAYES;
+  PROCESSORS = 2;
+  THIN = 2;
+  FBITERATIONS = 10000;
+  
+Model:
+%Within%
+II | IMPR on IMPR&1;
+IW | IMPR on WARM&1;
+IC | IMPR on COMP&1;
+WI | WARM on IMPR&1;
+WW | WARM on WARM&1;
+WC | WARM on COMP&1;
+CI | COMP on IMPR&1;
+CW | COMP on WARM&1;
+CC | COMP on COMP&1;
+ISV | IMPR on MEANVAL1;
+WSV | WARM on MEANVAL1;
+CSV | COMP on MEANVAL1;
+IINT | IMPR on interact;
+WINT | WARM on interact;
+CINT | COMP on interact;
+IMPR WARM COMP on x1-x8;
+interact on x1@0;
+
+
+%Between%
+IMPR ON d0_s1 (b0IMPR);
+WARM ON d0_s1 (b0WARM);
+COMP ON d0_s1 (b0COMP);
+II ON d0_s1 (b0II);
+IW ON d0_s1 (b0IW);
+IC ON d0_s1 (b0IC);
+WI ON d0_s1 (b0WI);
+WW ON d0_s1 (b0WW);
+WC ON d0_s1 (b0WC);
+CI ON d0_s1 (b0CI);
+CW ON d0_s1 (b0CW);
+CC ON d0_s1 (b0CC);
+ISV ON d0_s1 (b0ISV);
+WSV ON d0_s1 (b0WSV);
+CSV ON d0_s1 (b0CSV);
+IINT ON d0_s1 (b0IINT);
+WINT ON d0_s1 (b0WINT);
+CINT ON d0_s1 (b0CINT);
+
+
+[IMPR] (dIMPR); [WARM] (dWARM); [COMP] (dCOMP); [II] (dII); [IW] (dIW); 
+[IC] (dIC); [WI] (dWI); [WW] (dWW); [WC] (dWC); [CI] (dCI); [CW] (dCW); 
+[CC] (dCC); [ISV] (dISV); [WSV] (dWSV); [CSV] (dCSV); 
+[IINT] (dIINT); [WINT] (dWINT); [CINT] (dCINT);
+
+MODEL CONSTRAINT:
+New (sIMPR sWARM sCOMP sII sIW sIC sWI sWW sWC sCI sCW sCC sISV sWSV sCSV 
+sIINT sWINT sCINT);
+
+sIMPR=dIMPR+b0IMPR;
+sWARM=dWARM+b0WARM;
+sCOMP=dCOMP+b0COMP;
+sII=dII+b0II;
+sIW=dIW+b0IW;
+sIC=dIC+b0IC;
+sWI=dWI+b0WI;
+sWW=dWW+b0WW;
+sWC=dWC+b0WC;
+sCI=dCI+b0CI;
+sCW=dCW+b0CW;
+sCC=dCC+b0CC;
+sISV=dISV+b0ISV;
+sWSV=dWSV+b0WSV;
+sCSV=dCSV+b0CSV;
+sIINT=dIINT+b0IINT;
+sWINT=dWINT+b0WINT;
+sCINT=dCINT+b0CINT;
+
+
+Output: tech1 tech8 stdyx stdy;
