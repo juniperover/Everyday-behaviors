@@ -1,0 +1,126 @@
+---
+title: "EverydayBehaviours"
+author: "Jen Overbeck"
+date: "4/22/2020"
+output: html_document
+---
+
+
+## First, basic hygiene
+
+```{r library, include=FALSE}
+library(tidyverse)
+library(janitor) 
+library(here)
+library(beepr)
+library(skimr)
+library(dplyr)
+library(IPtoCountry)
+library(psych)
+library(knitr)
+library(data.table)
+library(processr)
+library(apaTables)
+library(car)
+library(magrittr)
+library(Hmisc)
+library(ggplot2)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      fig.align = "center",
+                      fig.width = 4, 
+                      fig.height = 4, 
+                      dev = "png",
+                      cache = TRUE)
+
+
+```
+
+
+
+## Second, read in dataset 
+
+```{r read-data, results = "hide"}
+ourdata <-read.csv("experiments/study2-prolific/data/seqimpr.csv")
+
+#needs to be converted from wide to long, specifically BEH and IMPR
+behdata <- ourdata[,-(23:38)]
+pivotbehdf <- behdata %>% pivot_longer(
+  cols = starts_with("BEH"),
+   names_to = "order",
+   names_prefix = "BEH",
+   values_to = "beh_valence",
+   values_drop_na = TRUE
+)
+
+impdata <- ourdata[,-(7:22)]
+pivotimpdf <- impdata %>% pivot_longer(
+  cols = starts_with("IMPR"),
+   names_to = "order",
+   names_prefix = "IMPR",
+   values_to = "impr",
+   values_drop_na = TRUE
+)
+
+plotdata <- cbind(pivotbehdf, pivotimpdf$impr) 
+colnames(plotdata)[9] <- "impr"
+
+
+
+```
+
+## Sequence visualisations
+
+Here we're going to look at sequences of 10 or more behaviours where the item valence order was identical for two participants, one of whom rated David (m) and one of whom rated Sarah (f).
+```{r plotprestbox, echo=FALSE}
+
+  plotdata$targgend = as.factor(plotdata$d0_s1)
+  plotdata$order = as.integer(as.character(plotdata$order))
+  plot_list = list()
+
+
+    for(i in 886:887) {
+      
+      #if(plotdata$Pair==i)  {
+        
+        df <- subset(plotdata,plotdata$Pair==i)
+
+        # New facet label names for gender variable
+        gend.labs <- c("Male Target", "Female Target")
+        names(gend.labs) <- c("0", "1")
+        
+        upper <- (length(df$order)/2)
+        upperplus <- upper + 1
+    
+        q <-ggplot(
+          data = df,
+          mapping = aes(
+            x=order,
+            y=impr, 
+            group=targgend,
+            color=beh_valence
+          ) 
+        ) + 
+          ylab("Impression") +
+          scale_x_continuous(name="Order of presentation", limits=c(1, upper), breaks=seq(0,upperplus,1)) +
+          scale_color_discrete(name="Behavior valence", labels=c("Neg","Neut","Pos")) +
+          geom_line() +
+          geom_point () +
+          facet_wrap(~targgend,
+                     ncol=1,
+                     labeller = labeller(targgend = gend.labs))
+            plot_list[[i]] = q
+       
+            
+        ggsave(q, file=paste0("sequence", i,".png"), width = 14, height = 10, units = "cm")
+        
+
+     # }
+    i = i+1
+    }    
+            
+
+```
+

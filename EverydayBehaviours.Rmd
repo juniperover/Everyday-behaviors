@@ -1,0 +1,133 @@
+---
+title: "EverydayBehaviours"
+author: "Jen Overbeck"
+date: "4/22/2020"
+output: html_document
+---
+
+
+## First, basic hygiene
+
+```{r library, include=FALSE}
+library(tidyverse)
+library(janitor) 
+library(here)
+library(beepr)
+library(skimr)
+library(dplyr)
+library(IPtoCountry)
+library(psych)
+library(knitr)
+library(data.table)
+library(processr)
+library(apaTables)
+library(car)
+library(magrittr)
+library(Hmisc)
+library(ggplot2)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      fig.align = "center",
+                      fig.width = 4, 
+                      fig.height = 4, 
+                      dev = "png",
+                      cache = TRUE)
+
+
+```
+
+
+
+## Second, read in dataset 
+
+```{r read-data, results = "hide"}
+ourdata <-read.csv("experiments/study1-student/data/16Novdata.csv")
+
+#read in raw data to examine demographics
+library(foreign)
+
+data <- read.spss("experiments/study1-student/data/Women-and-everyday-behaviours+Study+-+for+LS+class_December+10%2C+2018_09.28.sav", to.data.frame=TRUE)
+
+
+```
+
+## Sample descriptives
+
+```{r sample}
+data$age <- as.numeric(data$Age)
+demogs1 <- data %>%
+    dplyr::select("age") %>%
+    psych::describe() %>%
+    as_tibble(rownames="rowname") 
+demogs1
+
+gender1.count <- table(data$Gender)
+gender1.count
+#0 (converted to +1) male; 1 (converted to -1) female
+
+ethnic1.count <- table(data$Ethnicity_1)
+ethnic1.count
+# 1 Caucasian 2 Black 3 Asian 4 Hispanic 5 Other
+
+```
+
+## Here are visual summaries of our data.
+
+First, we'll look at impression at each time point, with colour coding for item valence and condition (target gender).
+
+```{r plotprestbox, echo=FALSE}
+
+ourdata$targgend = as.factor(ourdata$d0_s1)
+ourdata$time = as.factor(ourdata$t)
+ourdata$valence = as.factor(ourdata$statval)
+
+q <-ggplot(
+  data = ourdata,
+  mapping = aes(
+    x=t,
+    y=impr
+  ) 
+) + 
+  geom_line(aes(linetype=targgend)) +
+  stat_summary(fun.y = mean, geom="point") +
+  stat_summary(fun.y = mean, geom = "line", aes(group = targgend)) +
+  facet_grid(ID ~ targgend)
+
+ggsave(plot = q, width = 8, height = 3, dpi = 300, filename = "all-sep-lines.pdf")
+
+
+```
+
+Now trying it with summary stats.
+```{r plotprestbox2, echo=FALSE}
+
+ourdata$targgend = as.factor(ourdata$d0_s1)
+ourdata$time = as.factor(ourdata$t)
+ourdata$valence = as.factor(ourdata$statval)
+
+data_sum  <- ourdata %>%
+  group_by(time, targgend) %>%
+  summarize_each(
+    funs(mean = mean(impr, na.rm = TRUE), sd = sd(impr, na.rm = TRUE)))
+  #summarise(impr = mean(impr), sd = sd(impr, na.rm=TRUE))
+data_sum
+
+pd <- position_dodge(0.1) # move them .05 to the left and right
+
+p <- ggplot(
+  data = data_sum,
+  mapping = aes(
+    x=time,
+    y=impr,
+    group=targgend
+  ) 
+) + 
+  geom_errorbar(aes(ymin=impr-se, ymax=impr+se), colour="black", width=.1, position=pd) +
+  geom_line(aes(linetype=targgend)) +
+  geom_point(aes(shape=targgend)) 
+
+ggsave(plot = p, width = 8, height = 3, dpi = 300, filename = "gender-diffs-avg.pdf")
+
+```

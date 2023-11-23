@@ -1,0 +1,203 @@
+---
+title: "Everyday Behaviors: Study 1 (Student Sample)"
+author: "Jen Overbeck"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    theme: cosmo
+    code_download: TRUE
+    css: custom.css
+---
+
+
+## Basic hygiene
+
+[Syntax suppressed]
+
+```{r library, include=FALSE}
+library(plyr)
+library(matrixStats)
+library(tidyverse)
+library(janitor) 
+library(here)
+library(beepr)
+library(skimr)
+library(IPtoCountry)
+library(psych)
+library(knitr)
+library(stats)
+library(lavaan)
+library(reghelper)
+library(interactions)
+library(data.table)
+library(processR)
+library(apaTables)
+library(car)
+library(probemod)
+library(magrittr)
+library(Hmisc)
+library(gt)
+library(papaja)
+library(foreign)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      fig.align = "center",
+                      fig.width = 4, 
+                      fig.height = 4, 
+                      dev = "png",
+                      cache = TRUE,
+                      error = FALSE,
+                      warning = FALSE, 
+                      message = FALSE)
+
+#Preprocessing and data cleaning occurs in "preprocessing" in project template.
+#File path references are from top-level folder
+#mbadat <- read.csv("/Users/jenoverbeck/Dropbox/Documents/Power Research/SEGway/Online experimental study 2020/SEGway_Casey/experiments/MBA/data/Class_survey_R1_R2_combined.sav", use.value.label=TRUE, to.data.frame=TRUE)
+
+studentdf <- read.csv("experiments/study1-student/data/6July20_Longformat.csv")
+pretestdf <- read.csv("experiments/study0-valence-pretest/data/200819_PT.csv")
+```
+
+## Supplementary analyses (following mplus):
+
+
+```{r firstds, echo=FALSE}
+# create datafile that just has the first time point
+
+first.df <- subset(studentdf,t==1)
+
+first.df <- mutate(first.df, gender = 
+    ifelse(d0_s1 =="0", "1", "-1"))
+first.df$gender <- as.numeric(first.df$gender)
+```
+
+## Chronic impressions of women
+
+We could also see whether there’s more decoupling of behavior valence and just general/chronic impressions of women (versus men) by looking at IMPR(first) = b0 + b1STATVAL(first).
+
+```{r q1, echo=FALSE}
+#first, using the categorical statval var
+decouple1 <- lm(formula = impr ~ statval*gender, data=first.df)
+summary(decouple1)
+
+#next, using numerical ratings of item valence
+decouple2 <- lm(formula = impr ~ Meanval1*gender, data=first.df)
+summary(decouple2)
+```
+The answer: No. Regardless of the valence variable used as a predictor, we don't see a main or moderating effect of gender. This suggests that impressions of women are not more driven by chronic impressions.
+
+## First-behavior anchoring
+
+Next...we could look to see whether impressions of men vs women were differentially anchored by the first behavior that participants saw, by looking at IMPR(end) = b0 + b1STATVAL(first).
+
+``` {r q2, echo=FALSE}
+# create datafile with the first time point for behaviors and the last time point for impressions
+first.df <- subset(studentdf,t==1)
+first.df <- mutate(first.df, gender = 
+    ifelse(d0_s1 =="0", "1", "-1"))
+first.df$gender <- as.numeric(first.df$gender)
+
+last.df <- subset(studentdf,t==40) 
+
+impr40 <- last.df$impr
+
+firstlast.df <- cbind(first.df,impr40) 
+
+# now testing whether T1 valence predicts T40 impr differently for men, women
+# using categorical valence
+anchor1 <- lm(formula = impr40 ~ statval*gender, data=firstlast.df)
+summary(anchor1)
+
+#next, using numerical ratings of item valence
+anchor2 <- lm(formula = impr40 ~ Meanval1*gender, data=firstlast.df)
+summary(anchor2)
+```
+The answer: Again, no. In fact, not only does the first-item valence not predict impressions differently for men vs women...it doesn't predict the final impression at all.
+
+When writing up results on 28/12/21, I realized that the above analysis is not parallel to our "anchoring effect" Mplus analyses. Instead (or, also), we should look at IMPR(end) = b0 + b1IMPR(first).
+
+``` {r q2b, echo=FALSE}
+# create datafile with the first time point for impressions and the last time point for impressions
+
+last.df <- subset(studentdf,t==40) 
+
+impr40 <- last.df$impr
+
+firstlast.df <- cbind(first.df,impr40) 
+
+# now testing whether T1 valence predicts T40 impr differently for men, women
+# using categorical valence
+anchor1b <- lm(formula = impr40 ~ impr*gender, data=firstlast.df)
+summary(anchor1b)
+
+
+```
+The answer: Again, no evidence of first-behavior anchoring here.
+
+
+## Trait variability
+
+Finally, we can look at the MEANVAL ratings, which are the precise (continuous) ratings of the valence of the behaviors, and test whether the variance is different for M vs W. We might expect a smaller variance for women, in that people might not be differentiating the various behaviors as much for women. We can also look to see whether the mean valence differs.
+``` {r q3, echo=FALSE}
+
+
+# now, does mean valence of behaviors differ for men and women?
+pretestdf <- mutate(pretestdf, gender = 
+    ifelse(d0_s0 =="0", "1", "-1")) %>%
+    select(-Attention_check)
+
+posdf <- pretestdf[, 5:20]
+pretestdf$posmean <- rowMeans(posdf)
+pretestdf$possd <- rowSds(as.matrix(posdf))
+
+negdf <- pretestdf[, 21:36]
+pretestdf$negmean <- rowMeans(negdf)
+pretestdf$negsd <- rowSds(as.matrix(negdf))
+
+neutdf <- pretestdf[, 37:44]
+pretestdf$neutmean <- rowMeans(neutdf)
+pretestdf$neutsd <- rowSds(as.matrix(neutdf))
+
+sumdf <- pretestdf[,c(3,98:103)]
+
+# input data - positives
+
+pos2df <- sumdf[complete.cases(sumdf$d0_s0,sumdf$posmean), ]
+pos <- ddply(pos2df, "d0_s0", summarise, mean.pos=mean(posmean), sd=mean(possd))
+pos
+
+posm <- lm(formula = posmean ~ d0_s0, data=pos2df)
+summary(posm)
+
+poss <- lm(formula = possd ~ d0_s0, data=pos2df)
+summary(poss)
+
+# input data - negatives
+
+neg2df <- sumdf[complete.cases(sumdf$d0_s0,sumdf$negmean), ]
+neg <- ddply(neg2df, "d0_s0", summarise, mean.neg=mean(negmean), sd=sd(negmean))
+neg
+
+negm <- lm(formula = negmean ~ d0_s0, data=neg2df)
+summary(negm)
+
+negs <- lm(formula = negsd ~ d0_s0, data=neg2df)
+summary(negs)
+
+# input data - positives
+
+neut2df <- sumdf[complete.cases(sumdf$d0_s0,sumdf$neutmean), ]
+neut <- ddply(neut2df, "d0_s0", summarise, mean.neut=mean(neutmean), sd=sd(neutmean))
+neut
+
+neutm <- lm(formula = neutmean ~ d0_s0, data=neut2df)
+summary(neutm)
+
+neuts <- lm(formula = neutsd ~ d0_s0, data=neut2df)
+summary(neuts)
+```
+Answer: The patterns of means and SDs are consistent with the idea that a) women are seen more variably than are men, and b) women are seen as slightly higher in mean levels of each trait. If significant, these patterns would be contrary to the prediction, especially the variability prediction--we'd expect men to be seen more variably than women. But the differences are nonsignificant.

@@ -1,0 +1,363 @@
+---
+title: "Everyday Behaviors: Study 2 (Prolific Sample)"
+author: "Jen Overbeck"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    theme: cosmo
+    code_download: TRUE
+    css: custom.css
+---
+
+
+## Basic hygiene
+
+[Syntax suppressed]
+
+```{r library, include=FALSE}
+library(plyr)
+library(matrixStats)
+library(tidyverse)
+library(janitor) 
+library(here)
+library(beepr)
+library(skimr)
+library(IPtoCountry)
+library(psych)
+library(knitr)
+library(stats)
+library(lavaan)
+library(reghelper)
+library(interactions)
+library(data.table)
+library(processR)
+library(apaTables)
+library(car)
+library(probemod)
+library(magrittr)
+library(Hmisc)
+library(gt)
+library(papaja)
+library(foreign)
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, 
+                      fig.align = "center",
+                      fig.width = 4, 
+                      fig.height = 4, 
+                      dev = "png",
+                      cache = TRUE,
+                      error = FALSE,
+                      warning = FALSE, 
+                      message = FALSE)
+
+#Preprocessing and data cleaning occurs in "preprocessing" in project template.
+#File path references are from top-level folder
+
+
+prolificdf <- read.csv("experiments/study2-prolific/data/200908_Longformat.csv")
+
+glimpse(prolificdf)
+
+  `%notin%` <- Negate(`%in%`)
+  
+  prolificdf <- prolificdf %>%
+    clean_names() %>%
+    remove_empty(which=c("rows","cols")) 
+  
+  #recode working hours to include only first two characters (will give lowest end of ranges, no fractions)
+  prolificdf$newhours <- as.numeric(substr(prolificdf$how, start=1, stop=2))
+  
+  #subset to remove attention check failures
+  fulldf <- subset(prolificdf, prolificdf$attention_check_1 == "4" & prolificdf$attention_check2 == "4")
+  
+
+```
+
+
+
+```{r firstds, echo = FALSE}
+# create datafile that just has the first time point
+first.df <- subset(fulldf,t==1)
+
+#gender is coded now so that D (m) is positive and S (f) is negative
+first.df <- mutate(first.df, gender = 
+    ifelse(d0_s1 =="0", "1", "-1"))
+first.df$gender <- as.numeric(first.df$gender)
+```
+
+## Sample descriptives
+
+```{r sample}
+vlist <- c("age","gender","ethnicity")
+demogs <- prolificdf %>%
+    dplyr::select(contains(vlist)) %>%
+    psych::describe() %>%
+    as_tibble(rownames="rowname") 
+demogs
+
+gender.count <- table(first.df$gender)
+gender.count
+#0 (converted to +1) male; 1 (converted to -1) female
+
+ethnic.count <- table(first.df$ethnicity)
+ethnic.count
+# 1 Caucasian 2 Black 3 Asian 4 Hispanic 5 Other
+
+```
+
+## Chronic impressions of women
+
+We could first see whether there’s more **decoupling of behavior valence and just general/chronic impressions** of women (versus men) by looking at IMPR(first) = b0 + b1STATVAL(first).
+
+```{r q1, echo = FALSE}
+#first, using the categorical statval var
+decouple1 <- lm(formula = impr ~ statval*gender, data=first.df)
+summary(decouple1)
+
+#next, using numerical ratings of item valence
+decouple2 <- lm(formula = impr ~ meanval1*gender, data=first.df)
+summary(decouple2)
+```
+The answer: No. Regardless of the valence variable used as a predictor, we don't see a main or moderating effect of gender. This suggests that impressions of women are not more driven by chronic impressions.
+
+## First-behavior anchoring
+
+Next...we could look to see whether impressions of men vs women were **differentially anchored by the first behavior** that participants saw, by looking at IMPR(end) = b0 + b1STATVAL(first).
+
+``` {r q2, echo=FALSE}
+# create datafile with the first time point for behaviors and the last time point for impressions
+
+last.df <- subset(fulldf,t==40) 
+
+impr40 <- last.df$impr
+
+firstlast.df <- cbind(first.df,impr40) 
+
+# now testing whether T1 valence predicts T40 impr differently for men, women
+# using categorical valence
+anchor1 <- lm(formula = impr40 ~ statval*gender, data=firstlast.df)
+summary(anchor1)
+
+#next, using numerical ratings of item valence
+anchor2 <- lm(formula = impr40 ~ meanval1*gender, data=firstlast.df)
+summary(anchor2)
+```
+The answer: As in the student data, first-item valence doesn't predict the final impression. But the interaction terms are marginally significant, suggesting that the (ns) positive effect of first-item valence on final impression is stronger for women than for men.
+
+
+When writing up results on 28/12/21, I realized that the above analysis is not parallel to our "anchoring effect" Mplus analyses. Instead (or, also), we should look at IMPR(end) = b0 + b1IMPR(first).
+
+``` {r q2b, echo=FALSE}
+# create datafile with the first time point for impressions and the last time point for impressions
+
+last.df <- subset(fulldf,t==40) 
+
+impr40 <- last.df$impr
+
+firstlast.df <- cbind(first.df,impr40) 
+
+# now testing whether T1 valence predicts T40 impr differently for men, women
+# using categorical valence
+anchor1b <- lm(formula = impr40 ~ impr*gender, data=firstlast.df)
+summary(anchor1b)
+
+
+```
+The answer: Again, no evidence of first-behavior anchoring here.
+
+## Supplementary analyses with demographic variables
+
+From Katerina:
+
+1. Screen data for attention check failures (This has been done in the analyses reported above.)
+2. And here are the demographics we might explore to see if they would make a difference: 
+    a. Age - I would expect the effects to be exacerbated with age. 
+    b. Organizational level - I would expect the effects to be stronger for nonmanagers (compared to managers, first line supervisors, etc)
+    c. Hours worked per week - the more hours worked per week, the stronger the effects
+    d. Before Covid-19 - I would like to see if the effects would be stronger if they have NOT worked from home before the pandemic. (I don't think we have this variable in the dataset--will check further.)
+
+``` {r controlvars, echo=FALSE}
+###### Chronic/general impressions ######
+#first → first with age
+decouple1a <- lm(formula = impr ~ statval*gender*age, data=first.df)
+summary(decouple1a)
+
+#next, using numerical ratings of item valence
+decouple2a <- lm(formula = impr ~ meanval1*gender*age, data=first.df)
+summary(decouple2a)
+
+#first → first with org level
+decouple1l <- lm(formula = impr ~ statval*gender*lo, data=first.df)
+summary(decouple1l)
+
+#next, using numerical ratings of item valence
+decouple2l <- lm(formula = impr ~ meanval1*gender*lo, data=first.df)
+summary(decouple2l)
+
+#first → first with hours worked
+decouple1h <- lm(formula = impr ~ statval*gender*newhours, data=first.df)
+summary(decouple1h)
+
+#next, using numerical ratings of item valence
+decouple2h <- lm(formula = impr ~ meanval1*gender*newhours, data=first.df)
+summary(decouple2h)
+
+###### Anchoring on first behavior ######
+# now testing whether T1 valence predicts T40 impr differently for men, women
+# using categorical valence, with age
+anchor1a <- lm(formula = impr40 ~ statval*gender*age, data=firstlast.df)
+summary(anchor1a)
+
+#next, using numerical ratings of item valence, with age
+anchor2a <- lm(formula = impr40 ~ meanval1*gender*age, data=firstlast.df)
+summary(anchor2a)
+
+# using categorical valence, with level
+anchor1l <- lm(formula = impr40 ~ statval*gender*lo, data=firstlast.df)
+summary(anchor1l)
+
+#next, using numerical ratings of item valence, with level
+anchor2l <- lm(formula = impr40 ~ meanval1*gender*lo, data=firstlast.df)
+summary(anchor2l)
+
+# using categorical valence, with hours
+anchor1h <- lm(formula = impr40 ~ statval*gender*newhours, data=firstlast.df)
+summary(anchor1h)
+
+#next, using numerical ratings of item valence, with hours
+anchor2h <- lm(formula = impr40 ~ meanval1*gender*newhours, data=firstlast.df)
+summary(anchor2h)
+
+#now doing some tests with the effectiveness and WTF scales
+effect1 <- lm(formula = eb ~ gender*impr40, data=firstlast.df)
+summary(effect1)
+
+follow1 <- lm(formula = ef ~ gender*impr40, data=firstlast.df)
+summary(follow1)
+```
+Answers: Generally, including controls (i.e., moderators) does nothing to improve the models. In the case of the anchoring analyses, including the moderators actually wiped out the marginal interactions we were seeing before. 
+
+I also ran models examining effects of impressions and gender on the questionnaire measures. 
+
+1. Surprisingly, the final impression was *negatively* associated with perceived effectiveness of the boss. This did not depend on gender.
+2. The final impression positively predicted perceived willingness to follow the boss. This was marginally (p = .09) moderated by gender, so that the effect was stronger for FEMALE bosses.
+ 
+
+## "Hacky" approach to testing moderations
+
+Technique used: Calculate a correlation between the lagged impression and the current impression within individuals, convert that to a Z score, and then submit the Z score to a regression with the demographics (and target gender) as predictors.
+
+
+``` {r corrhack, echo=FALSE}
+
+#first calculate the autocorrelations
+impr_acf <-
+  fulldf %>% 
+    split(.$id) %>% 
+    map(~acf(.$impr, plot = F)) %>% 
+    map_dfr(
+      ~data.frame(lag = .$lag, 
+                  acf = .$acf,
+                  ci = qnorm(0.95)/sqrt(.$n.used)
+            ), .id = "id") 
+
+head(impr_acf)
+
+short_acf <- subset(impr_acf, impr_acf$lag==1)
+head(short_acf)
+
+#and extract the target gender and demog vectors (only one row per ID)
+demsdf <- first.df[,23:36]
+
+#now concatenate the gender vector with the autocorrs output & remake newhours (commented line was to get rid of extra ID vars, but unneeded)
+alldf <- cbind(short_acf,demsdf)
+  alldf$newhours <- as.numeric(substr(alldf$how, start=1, stop=2))
+  #alldf <- alldf[, -(5:106)]
+
+#now the fisher's r-to-z transformation
+alldf$lagcor <- fisherz(alldf$acf)
+
+#and finally the regressions, with various demog interactions
+hacky1 <- lm(formula = lagcor ~ gender, data=alldf)
+summary(hacky1)
+
+hacky2 <- lm(formula = lagcor ~ gender*age, data=alldf)
+summary(hacky2)
+
+hacky3 <- lm(formula = lagcor ~ gender*lo, data=alldf)
+summary(hacky3)
+
+hacky4 <- lm(formula = lagcor ~ gender*newhours, data=alldf)
+summary(hacky4)
+
+hacky5a <- lm(formula = eb ~ gender, data=alldf)
+summary(hacky5a)
+
+hacky5 <- lm(formula = eb ~ gender*lagcor, data=alldf)
+summary(hacky5)
+
+hacky6a <- lm(formula = ef ~ gender, data=alldf)
+summary(hacky6a)
+
+	
+hacky6 <- lm(formula = ef ~ gender*lagcor, data=alldf)
+summary(hacky6)
+
+```
+
+Results show:
+
+Model "hacky1": The lagged correlation between prior impression and current impression is marginally stronger for Sarah (F) than for David (M).
+
+Model "hacky2": However, with age in the model, the above effect disappears. There's also no main or moderating effect of age.
+
+Model "hacky3": If we put job level in the model, the gender effect also disappears (both main and interaction). However, we now see a level effect: Younger people show a stronger autocorrelation, i.e., their current impression is more strongly associated with their prior impression.
+
+Model "hacky4": If we put hours worked in the model, we see no effects of anything.
+
+Model "hacky5a": Gender does not predict perceived boss effectiveness, overall.
+
+Model "hacky5: Neither gender nor the autocorrelation of impression predicts perceived boss effectiveness.
+
+Model "hacky6a": Gender does not predict willingness to follow the boss, overall.
+
+Model "hacky6": If we add the autocorrelation to the model with gender predicting willingness to follow the boss, we find that the weaker that correlation (the less relationship between prior impression and current impression), the greater the willingness to follow the boss, regardless of gender.
+
+``` {r hackyplot echo=FALSE}
+water.fit1 = lm(mortality ~ calcium * north, data = water.df) ## interaction model
+water.fit2 = lm(mortality ~ calcium + north, data = water.df)
+ 
+water.pred1 = predict(water.fit1, water.df, interval = "confidence")
+water.pred2 = predict(water.fit2, water.df, interval = "confidence")
+ 
+water.df = water.df %&gt;% 
+  mutate(fit1 = water.pred1[,"fit"],
+         lwr1 = water.pred1[,"lwr"],
+         upr1 = water.pred1[,"upr"],
+         fit2 = water.pred2[,"fit"],
+         lwr2 = water.pred2[,"lwr"],
+         upr2 = water.pred2[,"upr"])
+ 
+p = water.df %&>% 
+  ggplot(aes(x = calcium, y = mortality)) + geom_point()
+ 
+p = p + facet_wrap(~north)
+p = p + geom_line(data = water.df, 
+                  mapping = aes(x = calcium, y = fit1), 
+                  col = "blue", size = 1.2)
+p = p + geom_line(data = water.df, 
+                  mapping = aes(x = calcium, y = fit2), 
+                  col = "red", size = 1.2)
+p = p + geom_ribbon(data = water.df, 
+                    mapping = aes(x = calcium, ymin = lwr1, ymax = upr1),
+                    fill = "blue", alpha = 0.2)
+p = p + geom_ribbon(data = water.df, 
+                    mapping = aes(x = calcium, ymin = lwr2, ymax = upr2),
+                    fill = "red", alpha = 0.2)
+p
+
+``
