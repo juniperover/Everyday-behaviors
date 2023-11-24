@@ -26,25 +26,26 @@ Mplus file written by Stat/Transfer
 !    INTERACT = int_fwd : gen int_fwd= Meanval1* f.Meanval1
 
 Data:
-   File is August17.dat ;
+   File is prolific-mplus-statval-attchecks.dat ;
 
 Variable:
    Names are     ID          T           D0_S1       IMPR        WARM        COMP        
      STATVAL     STATNUM     ITEMTYPE    X1          X2          X3          
      X4          X5          X6          X7          X8          ITEMNUM     
-     MEANVAL1    MEANVAL2    INTERACT     INT_FWD  ;  
+     MEANVAL1    MEANVAL2    INTERACT    INT_FWD  ;  
    Missing are . ;
 
-! interact is MEANVAL1*L.MEANVAL1 so we use the contemporaneous value here for it
+! interact is statval*lag(statval) so we use the contemporaneous value here for it
    
   CLUSTER = ID;
-  LAGGED = IMPR(1) WARM(1) COMP(1);
+  LAGGED = IMPR(1) WARM(1) COMP(1) interact(1);
   BETWEEN = D0_S1;
-  WITHIN = MEANVAL1 interact x1-x8;
-  Usevariables are D0_S1 IMPR WARM COMP MEANVAL1 x1-x8 interact;
+  WITHIN = STATVAL interact;
+  Usevariables are D0_S1 IMPR WARM COMP STATVAL interact;
 
 Analysis:
-  TYPE = random twolevel;
+  TYPE = random twolevel ! CROSSCLASSIFIED;
+  ;
   ESTIMATOR = BAYES;
   PROCESSORS = 2;
   THIN = 2;
@@ -61,14 +62,13 @@ WC | WARM on COMP&1;
 CI | COMP on IMPR&1;
 CW | COMP on WARM&1;
 CC | COMP on COMP&1;
-ISV | IMPR on MEANVAL1;
-WSV | WARM on MEANVAL1;
-CSV | COMP on MEANVAL1;
-IINT | IMPR on interact;
-WINT | WARM on interact;
-CINT | COMP on interact;
-IMPR WARM COMP on x1-x8;
-interact on x1@0;
+ISV | IMPR on STATVAL;
+WSV | WARM on STATVAL;
+CSV | COMP on STATVAL;
+IINT | IMPR on interact&1;
+WINT | WARM on interact&1;
+CINT | COMP on interact&1;
+interact on interact&1@0;
 
 
 %Between%
